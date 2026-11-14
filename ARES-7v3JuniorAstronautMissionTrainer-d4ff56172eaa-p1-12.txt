@@ -1,0 +1,572 @@
+ARES-7 v3: Junior Astronaut Mission Trainer
+
+
+
+
+  ARES-7 v3: Junior Astronaut Mission Trainer
+  Master build prompt for the NASA Space Apps Challenge 2026, "Build a Junior Astronaut
+  Mission Trainer". Includes builder instructions.
+
+  How to use this document. Give the whole document to the builder (a person or an AI
+  coding tool). Part A says how to work. Part B is the product spec. If a verified source
+  disagrees with this spec, the source wins and the builder records the change in
+   README.md .
+
+  Status of facts in this spec
+
+
+     Item                                           Status
+
+     Curiosity RAD: 0.64 mSv/day (surface), 1.84    Verified
+     mSv/day (cruise), measured at Gale Crater
+
+     InSight site 4.5024°N, 135.6234°E, elevation   Verified
+     −2,613 m (MOLA)
+
+     Perseverance site 18.4447°N, 77.4508°E         Verified
+
+     Flare start times: 2024-05-14 16:46 (X8.7),    Verified from public reports; confirm exact
+     2024-10-03 12:08 (X9.0), 2024-05-08 11:26      flrID s in DONKI
+     (M8.7), 2024-10-07 19:02 (X2.1)
+
+     Jezero elevation, ISS RadLab dose range,       Not verified. Builder must look up or leave
+     CSA page text, OSDR study IDs                  verified:false
+
+     SEP multipliers, dose spikes, all kW and %     Game design, not measurements
+     values
+
+
+
+  PART A: INSTRUCTIONS FOR THE GAME
+  BUILDER
+  A1. Working rules
+      1. Build in the four phases in A4. Do not start a phase until the previous phase's
+         acceptance tests pass. After each phase, report what works, what does not, and what
+         you changed.
+
+
+
+
+                                                                                             Page 1 of 12
+ARES-7 v3: Junior Astronaut Mission Trainer
+
+
+
+
+      2. Keep the simulation in a pure JavaScript module ( src/sim/ ) with no React or
+          Three.js imports. The UI and 3D scene only read its output. This keeps the rules
+          testable and stops 3D bugs from breaking gameplay.
+      3. Never invent data. Every number or ID in src/data/nasaData.js is an object {
+          value, unit, provenance, source, url, verified } . If you cannot confirm a value
+          from its source, set verified:false ; the UI must then show "pending verification"
+          beside it. Never fabricate flare IDs, OSDR study IDs, or quotes. Confirm that every
+          URL resolves before shipping.
+      4. Deterministic by seed. Use a seeded PRNG (mulberry32). The same seed produces
+          the same mission.
+      5. Always ship a Simple View (HUD and sliders, no 3D). It is the guaranteed-working
+          path. It activates automatically if WebGL fails or the 3D scene throws (use an Error
+          Boundary), and a header toggle switches to it manually.
+      6. Keyboard handling. Call preventDefault on Space and arrow keys. Ignore game keys
+          while a modal is open or a text field has focus. Ignore event.repeat for Q, E and
+          Space. Clear all held movement keys on window blur.
+      7. Accessibility. Text at least 16 px (kid UI 18 px). Touch targets at least 44 px. Visible
+         focus rings. Modals trap focus and close on Esc. Respect prefers-reduced-motion
+          (no shakes or pulses). No flashing more than 3 times per second. Never rely on color
+          alone (see B7).
+      8. No external assets. Procedural meshes only, system font stack with heavy weights,
+         lucide-react icons. No audio files. Read-aloud uses window.speechSynthesis :
+          feature-detect it, hide the button if unsupported, and cancel speech when a modal
+          closes.
+      9. Style rules. No backdrop-filter , no glassmorphism, no purple or cyan gradients, no
+         generic dashboard look. Use 2px solid borders, boxy panels, and the palette: slate
+           #0F172A , white #F8FAFC , Mars orange #EA580C , solar gold #EAB308 , emerald
+           #10B981 , crimson #EF4444 .
+   10. Never claim more than the data supports. Every on-screen number carries a
+       provenance badge (B2). The text "real" appears only next to REAL NASA MEASUREMENT
+          items.
+   11. Performance. Cap devicePixelRatio at 1.75. Keep draw calls low (merge static rocks
+          and trays, use instancing). Use at most one shadow-casting light with a 1024 map, or
+          no shadows. Pause the render loop when the tab is hidden or a full-screen modal is
+          open. Target 50+ fps on a mid-range tablet.
+
+
+
+
+                                                                                              Page 2 of 12
+ARES-7 v3: Junior Astronaut Mission Trainer
+
+
+
+
+   12. localStorage is allowed only for "onboarding seen" and best stars. Wrap every read
+       and write in try/catch.
+
+
+  A2. Setup
+     npm create vite@latest ares-7 -- --template react
+     cd ares-7
+     npm i three @react-three/fiber @react-three/drei framer-motion lucide-react
+     npm i -D tailwindcss @tailwindcss/vite vitest
+
+
+          Use a mutually compatible set. Check peer dependencies. If they conflict, pin React
+          18.3 + @react-three/fiber@8 + @react-three/drei@9.
+          Add "test": "vitest run" to package.json .
+          Put the NASA key in .env as VITE_NASA_API_KEY=DEMO_KEY . Document that
+          DEMO_KEY is heavily rate-limited.
+           npm run build must output a static dist/ that works on Netlify, Vercel or GitHub
+          Pages with no server. Optional: vite-plugin-singlefile for a one-file demo build.
+
+
+  A3. File structure
+     src/
+       sim/                       engine.js scenarios.js rng.js hints.js stars.js
+       data/                      nasaData.js sources.js copy.js     (kid text + judge text)
+       state/                     GameContext.jsx   (useReducer; snapshots for replay)
+       scene/                     Scene.jsx Terrain.jsx Astronaut.jsx CameraRig.jsx
+                                  ShieldStation.jsx BioDomeStation.jsx HabStation.jsx
+         ui/                      Hud.jsx StationPanel.jsx SolBrief.jsx WhyChain.jsx
+                                  SourcesModal.jsx RealVsSimplified.jsx TeacherGuide.jsx
+                                  CropSelector.jsx SiteSelect.jsx BiomarkerPanel.jsx
+                                  Onboarding.jsx ControlsLegend.jsx ModeToggle.jsx
+                                  Results.jsx JudgeDemo.jsx PrintReport.jsx
+       hooks/                     useKeyboard.js useSpeech.js
+       tests/                     engine.test.js
+     README.md                    (run steps, data provenance, AI-tools disclosure, credits)
+
+
+
+
+                                                                                               Page 3 of 12
+ARES-7 v3: Junior Astronaut Mission Trainer
+
+
+
+
+  A4. Phases and acceptance tests
+  Phase 1: Engine, tests, Simple View (no 3D). Build sim/ and a plain HUD with three
+  sliders, Execute Sol, the Why-Chain debrief, replay, and the results screen. Accept when:
+  all reference tests in B3.6 pass within ±0.1; a full 7-Sol game is playable with the mouse
+  only; no console errors.
+
+  Phase 2: 3D scene and controls. Terrain, astronaut, three stations, proximity rings, WASD
+  and arrows, tap-to-move, Q/E, Space. Accept when: the astronaut cannot leave the pad or
+  clip through stations; Q/E change only the station in range (or the last-selected one);
+  sliders and 3D controls stay in sync; Simple View toggle works; 50+ fps on a tablet-class
+  device.
+
+  Phase 3: Data, modals, modes. Sources modal, Real vs Simplified, Teacher guide, Site and
+  Crop selectors, biomarker panel, live DONKI sync, Cadet/Judge toggle, TTS, onboarding,
+  controls legend, 60-second Judge demo, print report. Accept when: every item in B7
+  exists and opens; live DONKI works online and falls back silently offline or when rate-
+  limited; every verified:false item shows its pending badge.
+
+  Phase 4: QA and polish. Run A5. Write the README.
+
+
+  A5. QA checklist (definition of done)
+          Playthroughs: run and record outcomes for the four reference plans in B3.6, plus one
+          zero-effort run (never touch sliders).
+          Devices: Chrome, Safari, Firefox on desktop; iPad Safari; a 390 px wide phone (Simple
+          View acceptable); 1366×768 laptop.
+          Input: keyboard-only, touch-only, mouse-only.
+          Network: offline, DONKI rate-limited (HTTP 429), DONKI slow (8 s timeout).
+          Settings: TTS on and off, reduced motion on, high zoom (200%).
+          Edge cases: Space pressed with a modal open; window blur while holding W; rapid
+          Q/E; battery exhausted; replays exhausted.
+          Content: zero invented IDs; all links resolve; provenance badge on every number; no
+          text above grade 5 reading level in Cadet mode.
+
+
+
+
+                                                                                            Page 4 of 12
+ARES-7 v3: Junior Astronaut Mission Trainer
+
+
+
+
+  A6. Hackathon compliance
+          Build and submit inside the event window (14–15 November 2026). Check the official
+          rules for deadlines.
+          Disclose AI tools used in building, as the event rules require.
+          Credit NASA, CSA and every dataset. Add: "Educational simulation. Not an official
+          NASA or CSA product."
+          Include an open-source license, and a short README demo script for judges.
+
+
+  PART B: PRODUCT SPEC
+
+  B1. Overview
+          Game: a Martian outpost trainer for ages 7–12, with an instant toggle to Judge Mode
+          for older students, teachers and judges. No login, no backend.
+          Mission: 7 Sols (Martian days). Each Sol, solar power is scarce. The player routes
+          power (kW) to three stations. Choices persist and compound across Sols.
+          Learning goal: space habitats are coupled systems, and with limited power you trade
+          one risk against another.
+          Challenge fit: it covers power, radiation shielding, food production and life support, so
+          players feel what makes a mission succeed or fail.
+
+
+
+  B2. Data and provenance
+  Every number shows one badge: REAL NASA MEASUREMENT , SCALED PHYSICS MODEL , or
+   NORMALIZED GAME UNIT .
+
+  Landing sites (Mars Trek)
+
+
+     Site                                     Coordinates   Elevation (MOLA)                  Notes
+
+     A: Jezero Crater                         18.4447°N,    look up in Mars Trek; if          Default
+     (Perseverance)                           77.4508°E     unverified, show "about −2.6 km
+                                                            (approx., verify)"
+
+     B: Elysium Planitia                      4.5024°N,     −2,613 m                          Flat
+     (InSight)                                135.6234°E                                      plain
+
+
+
+
+                                                                                                  Page 5 of 12
+ARES-7 v3: Junior Astronaut Mission Trainer
+
+
+
+
+  Site choice changes only the Seeded Randomizer's weather deck (Site B draws dust
+  fronts more often). That is game design, not a measured climate difference. The 7-Sol
+  Campaign is identical at both sites.
+
+  Radiation references (RadLab / Curiosity RAD)
+
+          Mars surface, galactic cosmic rays: 0.64 mSv/day, measured at Gale Crater. REAL
+          NASA MEASUREMENT
+          Deep-space cruise: 1.84 mSv/day. REAL NASA MEASUREMENT
+          ISS reference from OSDR RadLab: look up and link the dataset record. If you cannot
+          cite it, omit the number.
+          Mission safe dose budget: 6.5 mSv over 7 Sols. NORMALIZED GAME UNIT
+
+  Flare catalog (DONKI)
+
+
+    Key          Event                  ID (confirm in DONKI)          Class   SEP × Unshielded dose
+
+    QUIET Baseline                       GCR-BASELINE                  none    1.0   0.64
+
+    MOD          May 8, 2024             2024-05-08T11:26:00-FLR-001   M8.7    3.8   2.43
+
+    SEV          May 14, 2024            2024-05-14T16:46:00-FLR-001   X8.7    7.5   4.80
+
+    EXT          Oct 3, 2024             2024-10-03T12:08:00-FLR-001   X9.0    9.5   6.08
+
+    AFT          Oct 7, 2024             2024-10-07T19:02:00-FLR-001   X2.1    3.0   1.92
+
+
+          Flare class, date and time are REAL NASA MEASUREMENT (after ID confirmation). SEP ×
+          and dose are SCALED PHYSICS MODEL .
+          Flare X-ray class does not determine proton dose at a habitat. The Real vs Simplified
+          panel must say so.
+          Set verified:false on any ID you could not confirm in the DONKI API (use
+           startDate / endDate queries).
+
+  Live DONKI sync. Fetch https://api.nasa.gov/DONKI/FLR?startDate=<30 days
+  ago>&endDate=<today>&api_key=<key> with an 8 s timeout. Read flrID , classType ,
+   beginTime . Use the latest flare, and show LIVE and the fetch time. On any failure, fall
+  back silently to the catalog and show "Using saved NASA data".
+
+          Live data is used in Randomizer and Practice mode only, never in the tested
+          Campaign.
+          Class → SEP × buckets (game design): below M5 → 1.0; M5–M9.9 → 3.8; X1–X4.9 → 5.0;
+          X5–X8.9 → 7.5; X9 and up → 9.5.
+
+
+
+                                                                                                       Page 6 of 12
+ARES-7 v3: Junior Astronaut Mission Trainer
+
+
+
+
+  OSDR, CSA, Mars Trek, NASA Open APIs appear in the Sources modal (B7) with how each
+  drives the game. Write all CSA and OSDR text only from pages you have read. Link a real
+  OSDR study per biomarker after verifying it in OSDR search; otherwise link the OSDR
+  home page.
+
+
+  B3. Simulation engine
+
+  B3.1 State (persists across Sols)
+
+     Field                      Start         Meaning
+
+      o2Water                   85            Life-support buffer (0–100), NORMALIZED GAME
+                                              UNIT
+
+      food                      80            Food stock (0–100)
+
+      crewHealth                90            Crew readiness (0–100)
+
+      cumRad                    0.00          Cumulative dose, mSv. Warning above 4.5, limit 6.5
+
+      battery                   30            One-time emergency kW pool for the whole
+                                              mission
+
+      replays                   2             Replay-Sol uses left
+
+
+
+  B3.2 Player input
+  Each Sol the player sets P_shield , P_bio , P_hab in 5 kW steps (0–70 each). total =
+  sum . available = solarSupply − (crewHealth < 65 at end of previous Sol ? 10 :
+  0) . batteryDraw = max(0, total − available) . The move is illegal if batteryDraw >
+  battery . Execute is disabled until the plan is legal, and the UI shows the battery draw live.
+
+
+  B3.3 Order of operations (follow exactly)
+      1. dose = 0.64 × SEP × exp(−0.032 × P_shield) ; cumRad += dose .
+      2. eff = (crewHealth at start of this Sol < 65) ? 0.8 : 1.0 .
+      3. foodDelta = (P_bio − 40) × 0.45 ; if foodDelta > 0 multiply by eff . food =
+        clamp(food + foodDelta) .
+      4. bonus = (food ≥ 65 AND P_bio ≥ 30) ? +6 : −5 (uses the updated food). Sol 4
+        only: if P_bio ≥ 40 and bonus > 0 , bonus × 1.5 .
+
+
+
+                                                                                                   Page 7 of 12
+ARES-7 v3: Junior Astronaut Mission Trainer
+
+
+
+
+      5. o2Water = clamp(o2Water + (P_hab − 40) × 0.55 + bonus) .
+      6. radPenalty = dose > 1.10 ? (dose − 1.10) × 8.5 : 0 . scarcity = (o2Water <
+        55 ? 7 : 0) + (food < 55 ? 6 : 0) (uses updated values).
+      7. crewHealth = clamp(crewHealth + (P_hab − 40) × 0.45 − radPenalty −
+        scarcity) .
+      8. battery −= batteryDraw .
+      9. Return a structured trace array of every step (inputs, formula, delta, status). The
+         Why-Chain renders only from this trace.
+
+   clamp is 0–100.
+
+
+  B3.4 Scarcity note
+  On a quiet Sol, break-even is about 40 (bio) + 40 (hab) + shield. "Comfort level" is 45 kW
+  per station, so 135 kW total. Supply of 65–100 kW means players can never run everything
+  comfortably. They must choose which risk to carry.
+
+
+  B3.5 Campaign schedule (Site A and B identical)
+
+     Sol         Supply           Event (SEP ×)                       Teaching moment
+
+     1           100              QUIET (1.0)                         Baseline; learn the dials
+
+     2           100              MOD M8.7 (3.8)                      Shielding earns its keep (about 25 kW
+                                                                      avoids a dose penalty)
+
+     3           75               QUIET; dust opacity τ > 1.8         Dust cuts solar power
+
+     4           95               QUIET; CSA wheat pollination (Sol   Plants feed the life-support loop
+                                  4 bonus rule)
+
+     5           65               QUIET; severe dust storm            True scarcity; battery decision
+
+     6           100              SEV X8.7 + CME (7.5)                Shield about 46+ kW vs everything
+                                                                      else
+
+     7           90               AFT X2.1 (3.0)                      Final push; cumulative dose matters
+
+
+
+  B3.6 Reference tests (Vitest, tolerance ±0.1)
+  Plans are arrays of [shield, bio, hab] per Sol. Start state is B3.1.
+
+
+
+
+                                                                                                          Page 8 of 12
+ARES-7 v3: Junior Astronaut Mission Trainer
+
+
+
+
+     Plan                     Sol 1–7 allocations                Final o2Water / food /         Stars
+                                                                 crewHealth / cumRad
+
+     EVEN                     [30,30,30] [30,30,30] [25,25,25]   25 / 42 / 6 / 4.62             1★
+                              [30,30,30] [20,20,20] [30,30,30]
+                              [30,30,30]
+
+     HEUR                     [20,40,40] [25,40,35] [20,30,25]   61.25 / 62.0 / 60.43 / 4.50    2★
+                              [20,40,35] [15,25,25] [45,30,25]
+                              [25,35,30]
+
+     NOSHIELD                 [0,40,40] × 7                      100 / 80.0 / 40.26 / 11.71     1★
+
+     SHARP                    [10,40,55] [45,40,20] [0,35,40]    87.75 / 77.75 / 77.04 / 5.30   3★
+                              [0,40,60] [5,50,10] [35,60,20]
+                              [25,10,55]
+
+
+  Also test: dose(7.5, 50) ≈ 0.97 , dose(3.8, 25) ≈ 1.09 , and that an over-budget plan
+  is rejected.
+
+  What the tests show: splitting power evenly fails, skipping shields fails, a sensible plan
+  earns 2★, and a sharp plan earns 3★. If the builder changes any constant, rerun and report
+  the new outcomes.
+
+
+  B4. Status labels and outcomes
+          Stocks ( o2Water , food , crewHealth ): NOMINAL at 60 or above; STRAINED 40–59;
+          CRITICAL below 40.
+          Daily dose: NOMINAL ≤ 0.70; STRAINED ≤ 1.10; CRITICAL above 1.10.
+          Cumulative dose: NOMINAL ≤ 4.5; STRAINED ≤ 6.5; CRITICAL above 6.5.
+          Stars after Sol 7:
+                 ★★★ "Flight Director": all three stocks ≥ 65 and cumRad ≤ 5.5.
+                 ★★ "Mission Specialist": all three ≥ 50 and cumRad ≤ 6.5.
+                 ★ "Cadet": the mission finishes with lessons learned.
+
+
+  Non-punitive failure
+          If any stock reaches 0, open an Engineering Debrief (not a Game Over screen). It
+          shows the Why-Chain, the relevant NASA science, and its data source.
+
+
+
+                                                                                                 Page 9 of 12
+ARES-7 v3: Junior Astronaut Mission Trainer
+
+
+
+
+          Offer Replay this Sol (restores the snapshot from the start of that Sol, including
+          battery). Limit: 2 per mission. The results screen shows replays used.
+          Coach Hint is free and always available. It states the smallest shield (multiple of 5)
+          that avoids a radiation penalty this Sol and the break-even for bio and hab. Using it is
+          shown on the report, not scored.
+
+
+  B5. Seeded Randomizer
+  A seed field (editable, shareable) drives a PRNG. Per Sol, draw supply from {100, 95, 90, 75,
+  65} and an event from the flare catalog. Guarantee at least one dust Sol (supply ≤ 75) and
+  one flare Sol (SEP ≥ 3.8). Site B weights dust more. Show the seed on the report so
+  teachers can assign the same mission.
+
+
+  B6. 3D scene and controls
+          Camera: orthographic isometric (for example position [9,9,9], looking at the origin),
+          fixed.
+          Terrain: low-poly displaced plane (seeded noise), rock clusters, Mars-orange palette.
+          Pad radius about 7.
+          Astronaut: procedural capsule body, helmet sphere, floating direction cone. Start
+           (0,0,0) . Speed about 4 units/s. Clamp delta to avoid jumps after tab switches.
+          Circle collision with stations (radius about 1.4).
+          Stations (proximity ring radius about 2.2; highlight label when in range):
+                 North [0,0,−4.2] : Shield & Comms Relay. Wireframe dome; opacity = 0.15 + 0.6
+                 × (P/60).
+                 West [−4.2,0,2.2] : CSA Bio-Dome. Geodesic dome and crop trays; trays glow
+                 with P_bio ; dim and brown when food < 55 .
+                 East [4.2,0,2.2] : Habitat & ECLSS. Cylinder with lit windows (count = round(6
+                 × P/60)) and a rotating radiator; rotation scales with P_hab .
+          Controls (all work together):
+                 WASD / Arrows: move.
+                 Q / E: −5 / +5 kW on the station in range, or the last-selected station.
+                 Space or Execute button: run the Sol.
+                 Click/tap a station: walk there and open its panel.
+                 HUD sliders and ±5 buttons: same state as the 3D controls.
+
+
+
+                                                                                               Page 10 of 12
+ARES-7 v3: Junior Astronaut Mission Trainer
+
+
+
+
+                 H: Coach Hint. Esc: close modal.
+          On touch devices, show tap-to-move and the HUD buttons. A virtual joystick is
+          optional.
+          Always-visible controls legend: [WASD/Arrows] Move · [Q/E] −/+5 kW · [Space]
+          Execute Sol · [Click/Tap] Station or slider .
+
+
+
+  B7. Required UI features
+      1. Cadet / Judge toggle in the top bar.
+                 Cadet (default): plain language (grade 3–5, sentences of 14 words or fewer), icons,
+                 one "what to do" hint per Sol (for example "Run to the North Tower with WASD and
+                 boost shields before the solar storm!"), provenance shown as a small "i" popover.
+                 Judge: live equation values from the trace, mSv/day and kW load, flare IDs and
+                 class, coordinates and elevation, every provenance badge, and verified flags.
+      2. Colorblind-safe status. Pair every gauge with an icon and a text badge: CheckCircle
+         + NOMINAL, AlertTriangle + striped fill + STRAINED, ShieldAlert + pulsing
+          border + CRITICAL (no pulse in reduced-motion).
+      3. Onboarding (3 steps, skippable, replayable): (1) why demand exceeds supply; (2)
+         how the stations feed each other; (3) the controls.
+      4. Space-weather ticker: shows the Sol's flare ID and class and, in Judge mode, a Sync
+         Live NASA DONKI button (Practice and Randomizer only).
+      5. Site selector (Mars Trek; Jezero or Elysium; coordinates, elevation, provenance) on
+          the intro screen.
+      6. CSA Bio-Dome panel: crop selector (Dwarf Wheat, Red Romaine Lettuce, Radishes,
+         Cherry Tomatoes) with an educational card per crop, and a card on food production
+         for remote communities. Crop choice is educational only. All modifiers are 0 so the
+          tested balance holds. Source the text only from the CSA resources "Food production
+          on the moon and in remote areas" and "Space resources for STEM and youth
+          organizations".
+      7. OSDR Biomarker panel (display only, SCALED PHYSICS MODEL ): bone and muscle =
+         100 − 2.5 × max(0, 40 − average P_hab over the last 3 Sols) ; sleep = 100 −
+          2.5 × max(0, 40 − P_hab this Sol) ; immune = 100 − 12 × max(0, cumRad −
+          2.5) . Clamp 0–100 with status labels. Each links to a verified OSDR study or the
+          OSDR home page.
+
+
+
+
+                                                                                              Page 11 of 12
+ARES-7 v3: Junior Astronaut Mission Trainer
+
+
+
+
+      8. Why-Chain debrief after every Sol: a flowchart rendered from trace (power choice
+          → effect → effect → outcome), then Continue. Include a Read Aloud button.
+      9. NASA & CSA Data Sources modal (header button): all seven resources with what
+          each drives in the model.
+                 NASA Open APIs → DONKI call; DONKI → flare events; RadLab → dose references;
+                 OSDR → biomarkers; Mars Trek → sites; CSA Food Production → Bio-Dome; CSA
+                 STEM/Youth → STEM tips and reflection prompts.
+   10. Real vs Simplified modal with two columns.
+                 Real: Curiosity RAD doses, lander coordinates and MOLA elevation, flare class
+                 and times.
+                 Simplified/scaled: SEP multipliers; one exponential shielding curve standing in for
+                 regolith and water-wall shielding; 60-day crop cycles compressed into one-Sol
+                 dials; one-number crew health; X-ray class used as a stand-in for proton dose;
+                 Curiosity's dose measured at Gale Crater, used for both sites; Mars ISS-style
+                 hardware abstracted. State plainly that the outpost is fictional.
+   11. Teacher & NGSS guide with a print button: alignment to NGSS 3-5-ETS1-2 and MS-
+       ETS1-2 (verify wording on the NGSS site), learning objectives, 3 reflection prompts
+          (for example "What did you give up to protect the crew from the flare? Was it worth
+          it?"), the seed for the class, and Print Student Mission Report ( window.print() with
+          a print stylesheet).
+   12. Junior Cadet STEM tips (5 short tips and post-Sol reflection prompts, grounded in
+       the CSA youth/STEM page).
+   13. 60-second Judge Auto-Demo (top bar, countdown bar, skippable): (a) load the Sol 6
+          event and show the X8.7 ID; (b) say "100 kW supply, more demand"; (c) set shield 50,
+          bio 30, hab 20 and execute; (d) show the Why-Chain; (e) open Real vs Simplified. Make
+          it a scripted state, not a replay of user input.
+   14. Results screen: stars, final gauges, replays and hints used, a lesson summary, seed,
+          and the print button.
+
+
+  B8. Content rules
+          Cadet copy is short, friendly and concrete. Judge copy may be technical.
+          Every educational claim in the UI points to a source in sources.js , or is labelled
+          "game design".
+          Footer on every screen: Educational simulation. Not an official NASA or CSA product.
+          Data from NASA and CSA public resources.
+
+
+                                                                                                 Page 12 of 12
+

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="description" content="A junior astronaut mission trainer: plan seven Sols, balance Mars outpost power, and learn from a simplified radiation and life-support model." />
+    <title>Redline Outpost: Junior Astronaut Mission Trainer</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/share/favicon.png" />
+    <style>
+      :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      body { margin: 0; min-width: 320px; background: #0f172a; }
+      .boot-screen { min-height: 100svh; display: grid; place-content: center; justify-items: center; gap: 16px; padding: 24px; background: #0f172a; color: #f8fafc; text-align: center; }
+      .boot-mark { width: 64px; height: 64px; image-rendering: auto; }
+      .boot-title { font-size: clamp(20px, 4vw, 28px); font-weight: 850; letter-spacing: .08em; }
+      .boot-subtitle { color: #cbd5e1; font-size: 13px; letter-spacing: .11em; }
+      .boot-progress { width: min(300px, 74vw); height: 12px; border: 2px solid #eab308; background: #1e293b; overflow: hidden; }
+      .boot-progress span { display: block; width: 38%; height: 100%; background: #ea580c; animation: boot-progress 1.2s ease-in-out infinite alternate; }
+      .boot-status { margin: 0; color: #f8fafc; font-size: 14px; }
+      .boot-retry { min-height: 44px; padding: 9px 18px; border: 2px solid #eab308; background: #f8fafc; color: #0f172a; font: inherit; font-weight: 750; cursor: pointer; }
+      .boot-retry:focus-visible { outline: 3px solid #10b981; outline-offset: 4px; }
+      @keyframes boot-progress { from { transform: translateX(-8%); } to { transform: translateX(180%); } }
+      @media (prefers-reduced-motion: reduce) { .boot-progress span { animation-duration: 3s; } }
+    </style>
+  </head>
+  <body>
+    <section id="loading-screen" class="boot-screen" aria-busy="true" aria-label="Loading Redline Outpost">
+      <img class="boot-mark" src="./assets/share/favicon.png" width="64" height="64" alt="" />
+      <strong class="boot-title">REDLINE OUTPOST</strong>
+      <span class="boot-subtitle">JUNIOR ASTRONAUT MISSION TRAINER</span>
+      <div class="boot-progress" role="progressbar" aria-label="Mission console loading"><span></span></div>
+      <p id="loading-status" class="boot-status" role="status" aria-live="polite">Loading mission console…</p>
+      <button id="loading-retry" class="boot-retry" type="button" hidden>Retry loading</button>
+    </section>
+    <div id="app"></div>
+    <noscript>This mission trainer needs JavaScript. It does not require a login or backend.</noscript>
+    <script type="module" src="./src/bootstrap.ts"></script>
+  </body>
+</html>
